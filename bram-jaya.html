@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toko Bangunan Bram Jaya - Dashboard Kasir</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #007bff; color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .container { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+        button:hover { background: #218838; }
+        .btn-logout { background: #dc3545; width: auto; font-weight: normal; }
+        .btn-logout:hover { background: #c82333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .stat-box { display: flex; gap: 15px; margin-bottom: 15px; }
+        .stat-card { flex: 1; background: #e9ecef; padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-card h4 { margin: 0 0 5px 0; color: #555; }
+        .stat-card p { margin: 0; font-size: 18px; font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Dashboard Kasir - Toko Bangunan Bram Jaya</h2>
+    <div>
+        <span id="userDisplay"></span>
+        <button onclick="toggleEditMode()" id="refreshButton" style="margin-left: 15px; background: #ffc107; color: #212529; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">Refresh Transaksi</button>
+        <button class="btn-logout" onclick="logout()" style="margin-left: 15px;">Keluar</button>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Form Input Transaksi -->
+    <div class="card">
+        <h3>Input Transaksi Baru</h3>
+        <form id="transForm" onsubmit="tambahTransaksi(event)">
+            <div class="form-group">
+                <label>Nama Barang:</label>
+                <input type="text" id="namaBarang" placeholder="Contoh: Semen Gresik" required>
+            </div>
+            <div class="form-group">
+                <label>Harga Satuan (Rp):</label>
+                <input type="number" id="hargaBarang" placeholder="65000" required>
+            </div>
+            <div class="form-group">
+                <label>Jumlah (Qty):</label>
+                <input type="number" id="jumlahBarang" placeholder="10" required>
+            </div>
+            <div class="form-group">
+                <label>Tanggal Transaksi:</label>
+                <input type="date" id="tglTransaksi" required>
+            </div>
+            <button type="submit">Simpan Transaksi</button>
+        </form>
+    </div>
+
+    <!-- Analytics & Tabel Data -->
+    <div>
+        <div class="stat-box">
+            <div class="stat-card">
+                <h4>Total Penjualan</h4>
+                <p id="totalPenjualan">Rp 0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Produk Paling Laris</h4>
+                <p id="barangLaris">-</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Riwayat Transaksi</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                <div>
+                    <label for="bulanFilter" style="font-weight:bold;">Pilih Bulan:</label>
+                    <select id="bulanFilter" onchange="renderData()" style="margin-left:8px; padding:6px 10px; border-radius:4px; border:1px solid #ccc;">
+                        <option value="all">Semua Bulan</option>
+                    </select>
+                </div>
+                <div id="monthlySummary" style="font-size:14px; color:#555;"></div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Barang</th>
+                        <th>Qty</th>
+                        <th>Harga</th>
+                        <th>Total</th>
+                        <th>Kasir</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelTransaksi">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Memeriksa sesi login dari sessionStorage
+    const currentUser = sessionStorage.getItem("currentUser");
+    
+    // Jika tidak ada sesi (habis/ditutup), langsung lempar kembali ke halaman login
+    if (!currentUser) {
+        window.location.href = "index.html";
+    } else {
+        document.getElementById("userDisplay").innerText = "Kasir: " + currentUser;
+    }
+
+    document.getElementById("tglTransaksi").valueAsDate = new Date();
+
+    // Data transaksi tetap tersimpan permanen di localStorage
+    let transaksiList = JSON.parse(localStorage.getItem("dataTransaksi")) || [];
+    let editMode = false;
+    let editIndex = null;
+
+    function getMonthKey(dateString) {
+        const d = new Date(dateString);
+        if (isNaN(d)) return "unknown";
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        return `${year}-${month}`;
+    }
+
+    function getMonthLabel(monthKey) {
+        if (monthKey === "all") return "Semua Bulan";
+        const [year, month] = monthKey.split("-");
+        const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+        return `${namaBulan[Number(month) - 1]} ${year}`;
+    }
+
+    function populateMonthFilter(selectedMonth = "all") {
+        const filter = document.getElementById("bulanFilter");
+        const monthSet = new Set();
+        transaksiList.forEach(t => {
+            monthSet.add(getMonthKey(t.tanggal));
+        });
+
+        const months = Array.from(monthSet).filter(k => k !== "unknown").sort().reverse();
+        filter.innerHTML = "<option value=\"all\">Semua Bulan</option>" + months.map(m => `<option value=\"${m}\">${getMonthLabel(m)}</option>`).join("");
+        if (months.includes(selectedMonth) || selectedMonth === "all") {
+            filter.value = selectedMonth;
+        } else {
+            filter.value = "all";
+        }
+    }
+
+    function renderData() {
+        const filter = document.getElementById("bulanFilter");
+        const currentSelection = filter ? filter.value : "all";
+        populateMonthFilter(currentSelection);
+        const tbody = document.getElementById("tabelTransaksi");
+        tbody.innerHTML = "";
+        const selectedMonth = document.getElementById("bulanFilter").value;
+        let totalSemua = 0;
+        let rekapBarang = {};
+        let totalTransaksi = 0;
+        let totalBulan = 0;
+
+        const transaksiFiltered = transaksiList.filter((t) => {
+            const monthKey = getMonthKey(t.tanggal);
+            return currentSelection === "all" || monthKey === currentSelection;
+        });
+
+        transaksiFiltered.forEach((t, index) => {
+            const subtotal = t.harga * t.jumlah;
+            totalSemua += subtotal;
+            totalTransaksi += 1;
+
+            rekapBarang[t.nama] = (rekapBarang[t.nama] || 0) + parseInt(t.jumlah);
+            totalBulan += parseInt(t.jumlah);
+
+            let actions = "";
+            if (editMode) {
+                actions = `<td>
+                    <button onclick="editTransaksi(${index})" style="margin-right:8px;padding:4px 8px;background:#17a2b8;border:none;color:white;border-radius:4px;cursor:pointer;">Edit</button>
+                    <button onclick="hapusTransaksi(${index})" style="padding:4px 8px;background:#dc3545;border:none;color:white;border-radius:4px;cursor:pointer;">Hapus</button>
+                </td>`;
+            }
+
+            const row = `<tr>
+                <td>${t.tanggal}</td>
+                <td>${t.nama}</td>
+                <td>${t.jumlah}</td>
+                <td>Rp ${parseInt(t.harga).toLocaleString("id-ID")}</td>
+                <td>Rp ${subtotal.toLocaleString("id-ID")}</td>
+                <td>${t.kasir}</td>
+                ${actions}
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+
+        document.getElementById("totalPenjualan").innerText = "Rp " + totalSemua.toLocaleString("id-ID");
+        document.getElementById("monthlySummary").innerText = currentSelection === "all"
+            ? `Menampilkan semua transaksi (${transaksiFiltered.length})` 
+            : `Menampilkan ${transaksiFiltered.length} transaksi pada ${getMonthLabel(currentSelection)}, total barang ${totalBulan}`;
+
+        if (editMode) {
+            document.getElementById("tabelTransaksi").closest('table').querySelector('thead tr').innerHTML = `<th>Tanggal</th><th>Barang</th><th>Qty</th><th>Harga</th><th>Total</th><th>Kasir</th><th>Aksi</th>`;
+        } else {
+            document.getElementById("tabelTransaksi").closest('table').querySelector('thead tr').innerHTML = `<th>Tanggal</th><th>Barang</th><th>Qty</th><th>Harga</th><th>Total</th><th>Kasir</th>`;
+        }
+
+        let terlaris = "-";
+        let maxQty = 0;
+        for (let b in rekapBarang) {
+            if (rekapBarang[b] > maxQty) {
+                maxQty = rekapBarang[b];
+                terlaris = `${b} (${maxQty} unit)`;
+            }
+        }
+        document.getElementById("barangLaris").innerText = terlaris;
+    }
+
+    function tambahTransaksi(e) {
+        e.preventDefault();
+        const nama = document.getElementById("namaBarang").value;
+        const harga = document.getElementById("hargaBarang").value;
+        const jumlah = document.getElementById("jumlahBarang").value;
+        const tanggal = document.getElementById("tglTransaksi").value;
+
+        const transaksiBaru = {
+            nama, harga, jumlah, tanggal,
+            kasir: currentUser
+        };
+
+        if (editIndex !== null) {
+            transaksiList[editIndex] = transaksiBaru;
+            editIndex = null;
+            editMode = false;
+            document.getElementById("refreshButton").innerText = "Refresh Transaksi";
+            document.querySelector("button[type='submit']").innerText = "Simpan Transaksi";
+        } else {
+            transaksiList.push(transaksiBaru);
+        }
+
+        localStorage.setItem("dataTransaksi", JSON.stringify(transaksiList));
+
+        document.getElementById("transForm").reset();
+        document.getElementById("tglTransaksi").valueAsDate = new Date();
+        renderData();
+    }
+
+    function toggleEditMode() {
+        editMode = !editMode;
+        editIndex = null;
+        document.getElementById("refreshButton").innerText = editMode ? "Selesai Perbaikan" : "Refresh Transaksi";
+        renderData();
+    }
+
+    function editTransaksi(index) {
+        const transaksi = transaksiList[index];
+        document.getElementById("namaBarang").value = transaksi.nama;
+        document.getElementById("hargaBarang").value = transaksi.harga;
+        document.getElementById("jumlahBarang").value = transaksi.jumlah;
+        document.getElementById("tglTransaksi").value = transaksi.tanggal;
+        editIndex = index;
+        editMode = false;
+        document.getElementById("refreshButton").innerText = "Refresh Transaksi";
+        document.querySelector("button[type='submit']").innerText = "Perbarui Transaksi";
+        document.getElementById("namaBarang").focus();
+        renderData();
+    }
+
+    function hapusTransaksi(index) {
+        if (confirm("Hapus transaksi ini?")) {
+            transaksiList.splice(index, 1);
+            localStorage.setItem("dataTransaksi", JSON.stringify(transaksiList));
+            renderData();
+        }
+    }
+
+    function logout() {
+        // Hapus sesi aktif dari sessionStorage
+        sessionStorage.removeItem("currentUser");
+        window.location.href = "index.html";
+    }
+
+    renderData();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toko Bangunan Bram Jaya - Login Kasir</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; margin: 0; }
+        .login-box { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+        .login-box h2 { margin-bottom: 5px; color: #333; }
+        .login-box p { margin-bottom: 20px; color: #666; font-size: 14px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        .input-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; }
+        .checkbox-group label { display: inline-block; margin: 0; font-size: 14px; font-weight: normal; }
+        button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <h2>Toko Bangunan Bram Jaya</h2>
+    <p>Sistem Kasir & Operasional</p>
+    
+    <div class="input-group">
+        <label for="username">Nama / User:</label>
+        <input type="text" id="username" placeholder="Masukkan nama kamu">
+    </div>
+    <div class="input-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" placeholder="Masukkan password">
+    </div>
+    <div class="checkbox-group">
+        <input type="checkbox" id="showPassword" onclick="togglePassword()">
+        <label for="showPassword">Lihat Password</label>
+    </div>
+    <button onclick="login()">Masuk ke Dashboard</button>
+</div>
+
+<script>
+    function togglePassword() {
+        const passwordField = document.getElementById('password');
+        passwordField.type = passwordField.type === 'password' ? 'text' : 'password';
+    }
+    function login() {
+        var user = document.getElementById('username').value;
+        var pass = document.getElementById('password').value;
+        
+        if (user.trim() === "") {
+            alert("Harap masukkan nama terlebih dahulu!");
+            return;
+        }
+
+        if (pass === "bramodya123") {
+            // Menggunakan sessionStorage agar login terhapus saat tab/browser ditutup
+            sessionStorage.setItem("currentUser", user);
+            alert("Selamat datang, " + user + "!");
+            window.location.href = "bram-jaya.html";
+        } else {
+            alert("Password salah!");
+        }
+    }
+</script>
+
+</body>
+</html>
